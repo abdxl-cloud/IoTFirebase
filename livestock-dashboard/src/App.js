@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ScatterChart, Scatter, ZAxis } from 'recharts';
@@ -128,6 +129,56 @@ export default function LivestockMonitor() {
     };
   };
 
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const toCSV = (rows) => {
+    if (!rows || rows.length === 0) return '';
+    const keySet = new Set();
+    rows.forEach((r) => Object.keys(r).forEach((k) => keySet.add(k)));
+    const headers = Array.from(keySet);
+    const escape = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+    const headerLine = headers.join(',');
+    const lines = rows.map((row) => headers.map((h) => escape(row[h])).join(','));
+    return [headerLine, ...lines].join('\n');
+  };
+
+  const handleExportCSV = () => {
+    if (!historicalData || historicalData.length === 0) {
+      alert('No data available to export.');
+      return;
+    }
+    const csv = toCSV(historicalData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    downloadBlob(blob, 'livestock-readings.csv');
+  };
+
+  const handleExportExcel = () => {
+    if (!historicalData || historicalData.length === 0) {
+      alert('No data available to export.');
+      return;
+    }
+    const worksheet = XLSX.utils.json_to_sheet(historicalData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Readings');
+    XLSX.writeFile(workbook, 'livestock-readings.xlsx');
+  };
+
   const calculateHealthScore = (temps, hrs, violations) => {
     let score = 100;
     const abnormalTemps = temps.filter(t => t < 36 || t > 39).length;
@@ -207,6 +258,17 @@ export default function LivestockMonitor() {
       gap: '10px',
       transition: 'all 0.3s ease',
       boxShadow: isDark ? '0 4px 6px rgba(0,0,0,0.3)' : '0 4px 6px rgba(0,0,0,0.1)'
+    },
+    exportBtn: {
+      backgroundColor: '#3B82F6',
+      color: '#FFFFFF',
+      border: 'none',
+      borderRadius: '8px',
+      padding: '10px 16px',
+      cursor: 'pointer',
+      fontWeight: '600',
+      transition: 'all 0.2s',
+      boxShadow: isDark ? '0 2px 4px rgba(0,0,0,0.3)' : '0 2px 4px rgba(0,0,0,0.1)'
     },
     tabs: {
       display: 'flex',
@@ -349,15 +411,33 @@ export default function LivestockMonitor() {
             <h1 style={styles.title}>Livestock Monitor</h1>
             <p style={styles.subtitle}>Real-time animal health & location tracking</p>
           </div>
-          <button 
-            onClick={() => setIsDark(!isDark)}
-            style={styles.themeToggle}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            <span style={{ fontWeight: '600' }}>{isDark ? 'Light' : 'Dark'} Mode</span>
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setIsDark(!isDark)}
+              style={styles.themeToggle}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              <span style={{ fontWeight: '600' }}>{isDark ? 'Light' : 'Dark'} Mode</span>
+            </button>
+            <button
+              onClick={handleExportCSV}
+              style={styles.exportBtn}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={handleExportExcel}
+              style={styles.exportBtn}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              Export Excel
+            </button>
+          </div>
         </header>
 
         <div style={styles.tabs}>
